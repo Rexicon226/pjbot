@@ -25,6 +25,7 @@ const Commands = enum {
 const TagCommands = enum {
     add,
     owner,
+    alias,
 };
 
 const usage =
@@ -32,12 +33,10 @@ const usage =
     \\
     \\Prefix with `%s` for commands.
     \\
-    \\  help - replies with this usage text
+    \\  help    - replies with this usage text
     \\  version - prints the version of the bot
-    \\  tag - command for dealing with tags
-    \\  
-    \\Requires JS enabled:
-    \\  eval - evaluates javascript
+    \\  tag     - command for dealing with tags
+    \\  eval    - evaluates javascript
     \\
 ;
 
@@ -137,6 +136,20 @@ pub fn run(b: *Bot, c: *Client, object: discord.MessageCreate) !void {
                         "tag '{s}' is owned by '{s}'",
                         .{ name, tag.owner },
                     );
+                },
+                .alias => {
+                    const name = tokenizer.next() orelse
+                        return try c.chat(object.channel_id, object.id, "no tag name provided", .{});
+                    const alternate_name = tokenizer.next() orelse
+                        return try c.chat(object.channel_id, object.id, "no alternate name provided", .{});
+
+                    const current_index = b.tag_db.map.get(name) orelse return try c.chat(
+                        object.channel_id,
+                        object.id,
+                        "no tag exists by the name of '{s}'",
+                        .{name},
+                    );
+                    try b.tag_db.map.put(b.gpa, alternate_name, current_index);
                 },
             }
         },
