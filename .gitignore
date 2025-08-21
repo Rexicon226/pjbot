@@ -1,0 +1,3 @@
+config.zon
+.zig-cache
+zig-out/
