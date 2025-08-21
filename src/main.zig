@@ -1,7 +1,14 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const Client = @import("Client.zig");
 const Bot = @import("Bot.zig");
 
+pub const std_options: std.Options = .{
+    .log_level = switch (builtin.mode) {
+        .Debug => .debug,
+        else => .info,
+    },
+};
 pub const version = std.SemanticVersion.parse("0.1.0") catch unreachable;
 
 const Config = struct {

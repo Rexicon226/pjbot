@@ -217,6 +217,8 @@ pub fn run(c: *Client, gr: GatewayResponse) !void {
                         defer ready_object.deinit();
 
                         if (ready_object.value.v != 10) return error.UnsupportedGatewayVersion;
+
+                        if (c.session_id != null or c.resume_gateway_url != null) continue :loop; // already set
                         c.session_id = try c.gpa.dupe(u8, ready_object.value.session_id);
                         c.resume_gateway_url = try c.gpa.dupe(u8, ready_object.value.resume_gateway_url);
                     },

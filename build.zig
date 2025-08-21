@@ -14,6 +14,19 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
+    const options = b.addOptions();
+    exe.root_module.addOptions("build_options", options);
+
+    const kiesel = b.dependency("kiesel", .{
+        .target = target,
+        .optimize = optimize,
+        .@"enable-intl" = false,
+        .@"enable-temporal" = false,
+        .@"version-string" = @as([]const u8, "0.1.0"),
+    });
+    exe.root_module.addImport("kiesel", kiesel.module("kiesel"));
+    exe.root_module.addImport("ptk", kiesel.builder.dependency("parser_toolkit", .{}).module("parser-toolkit"));
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);

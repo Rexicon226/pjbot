@@ -1,9 +1,16 @@
 const std = @import("std");
+const build_options = @import("build_options");
+const kiesel = @import("kiesel");
+const ptk = @import("ptk");
 const Client = @import("Client.zig");
 const TagDb = @import("TagDb.zig");
 const discord = @import("discord.zig");
 const root = @import("main.zig");
 const Bot = @This();
+
+const Agent = kiesel.execution.Agent;
+const Realm = kiesel.execution.Realm;
+const Script = kiesel.language.Script;
 
 gpa: std.mem.Allocator,
 tag_db: TagDb,
@@ -12,6 +19,7 @@ const Commands = enum {
     help,
     version,
     tag,
+    eval,
 };
 
 const TagCommands = enum {
@@ -26,6 +34,10 @@ const usage =
     \\
     \\  help - replies with this usage text
     \\  version - prints the version of the bot
+    \\  tag - command for dealing with tags
+    \\  
+    \\Requires JS enabled:
+    \\  eval - evaluates javascript
     \\
 ;
 
@@ -67,8 +79,20 @@ pub fn run(b: *Bot, c: *Client, object: discord.MessageCreate) !void {
         .tag => {
             const sub_command_string = tokenizer.next() orelse
                 return try c.chat(object.channel_id, object.id, "no sub command provided", .{});
-            const sub_command = std.meta.stringToEnum(TagCommands, sub_command_string) orelse
-                return try c.chat(object.channel_id, object.id, "unknown tag subcommand: {s}", .{sub_command_string});
+
+            const sub_command = std.meta.stringToEnum(TagCommands, sub_command_string) orelse {
+                // if we don't know the subcommand, try to find it in the database and display it
+                const tag = b.tag_db.getTag(sub_command_string) catch |err| switch (err) {
+                    error.NoTag => return try c.chat(
+                        object.channel_id,
+                        object.id,
+                        "no tag exists by the name of '{s}'",
+                        .{sub_command_string},
+                    ),
+                    else => return err,
+                };
+                return try c.chat(object.channel_id, object.id, "{s}", .{tag.body});
+            };
 
             switch (sub_command) {
                 .add => {
@@ -115,6 +139,42 @@ pub fn run(b: *Bot, c: *Client, object: discord.MessageCreate) !void {
                     );
                 },
             }
+        },
+        .eval => {
+            const source_text = tokenizer.rest();
+            const platform = Agent.Platform.default();
+            defer platform.deinit();
+            var agent = try Agent.init(&platform, .{});
+            defer agent.deinit();
+
+            try Realm.initializeHostDefinedRealm(&agent, .{});
+            const realm = agent.currentRealm();
+
+            var diag: ptk.Diagnostics = .init(b.gpa);
+            defer diag.deinit();
+            const script = Script.parse(source_text, realm, null, .{
+                .diagnostics = &diag,
+                .file_name = "greg.js",
+            }) catch |err| switch (err) {
+                error.ParseError => {
+                    var list: std.ArrayListUnmanaged(u8) = .empty;
+                    defer list.deinit(b.gpa);
+                    const writer = list.writer(b.gpa);
+                    try diag.print(writer);
+                    return try c.chat(object.channel_id, object.id, "{s}", .{list.items});
+                },
+                else => return err,
+            };
+            const result = script.evaluate() catch |err| switch (err) {
+                error.ExceptionThrown => return try c.chat(object.channel_id, object.id, "{pretty}", .{agent.exception.?}),
+                else => return err,
+            };
+
+            try c.chat(object.channel_id, object.id,
+                \\```ansi
+                \\{pretty}
+                \\```
+            , .{result});
         },
     }
 }

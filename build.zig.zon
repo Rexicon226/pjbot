@@ -1,0 +1,17 @@
+.{
+    .name = .pjbot,
+    .version = "0.0.0",
+    .fingerprint = 0x9535ddb6948263bb,
+    .minimum_zig_version = "0.14.1",
+    .dependencies = .{
+        .kiesel = .{
+            .url = "git+https://codeberg.org/kiesel-js/kiesel#2f7292251ad82f9b8362ccfa68182deab7b6cefd",
+            .hash = "kiesel-0.1.0-Q1t3Sr6tfADiK5uflQ8gqyXtuGiWGtmI1IW3a9JBNL4L",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}
